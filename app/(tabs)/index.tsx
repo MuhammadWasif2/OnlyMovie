@@ -4,12 +4,12 @@ import { icons } from "@/constants/icons";
 import { images } from "@/constants/images";
 import { useRouter } from "expo-router";
 import {
-  ActivityIndicator,
-  FlatList,
-  Image,
-  RefreshControl,
-  Text,
-  View,
+    ActivityIndicator,
+    FlatList,
+    Image,
+    RefreshControl,
+    Text,
+    View,
 } from "react-native";
 
 import { fetchMovies } from "@/services/api";
@@ -17,7 +17,7 @@ import { getTrendingMovies } from "@/services/appwrite";
 import useFetch from "@/services/useFetch";
 
 import TrendingCard from "@/components/TrendingCard";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const Index = () => {
   const router = useRouter();
@@ -29,20 +29,60 @@ const Index = () => {
     refetch: refetchTrending,
   } = useFetch(getTrendingMovies);
 
-  const {
-    data: movies,
-    loading: moviesLoading,
-    error: moviesError,
-    refetch: refetchMovies,
-  } = useFetch(() => fetchMovies({ query: "" }));
+  const [movies, setMovies] = useState<Movie[]>([]);
+  const [moviesLoading, setMoviesLoading] = useState(true);
+  const [moviesError, setMoviesError] = useState<Error | null>(null);
+  const [page, setPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  const loadMovies = async (currentPage: number, isInitial = false) => {
+    if (isInitial) {
+      setMoviesLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const newMovies = await fetchMovies({ query: "", page: currentPage });
+      if (newMovies.length > 0) {
+        setMovies(prev => isInitial ? newMovies : [...prev, ...newMovies]);
+        setHasMore(true);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err: any) {
+      setMoviesError(err);
+    } finally {
+      if (isInitial) {
+        setMoviesLoading(false);
+      } else {
+        setLoadingMore(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    loadMovies(1, true);
+  }, []);
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadMovies(nextPage);
+    }
+  };
 
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refetchTrending(), refetchMovies()]);
+    setPage(1);
+    setHasMore(true);
+    await Promise.all([refetchTrending(), loadMovies(1, true)]);
     setRefreshing(false);
-  }, [refetchTrending, refetchMovies]);
+  }, [refetchTrending]);
 
   const renderHeader = () => (
     <View className="w-full mt-20">
@@ -82,7 +122,16 @@ const Index = () => {
     </View>
   );
 
-  if (moviesLoading || trendingLoading) {
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View className="py-8">
+        <ActivityIndicator size="large" color="#0000ff" />
+      </View>
+    );
+  };
+
+  if (moviesLoading && movies.length === 0) {
     return (
       <View className="flex-1 justify-center items-center bg-primary">
         <ActivityIndicator size="large" color="#0000ff" />
@@ -113,7 +162,7 @@ const Index = () => {
         data={movies}
         ListHeaderComponent={renderHeader}
         renderItem={({ item }) => <MovieCard {...item} />}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item, index) => `${item.id}-${index}`}
         numColumns={3}
         columnWrapperStyle={{
           justifyContent: "flex-start",
@@ -128,6 +177,9 @@ const Index = () => {
             tintColor="#fff"
           />
         }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={renderFooter}
       />
     </View>
   );

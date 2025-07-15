@@ -15,6 +15,19 @@ interface Movie {
   vote_count: number;
 }
 
+interface MovieTrailer {
+  id: string;
+  key: string;
+  name: string;
+  site: string;
+  size: number;
+  type: string;
+  official: boolean;
+  published_at: string;
+  iso_639_1: string;
+  iso_3166_1: string;
+}
+
 interface TrendingMovie {
   searchTerm: string;
   movie_id: number;
@@ -74,4 +87,11 @@ interface MovieDetails {
 interface TrendingCardProps {
   movie: TrendingMovie;
   index: number;
+}
+
+interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profile_path: string | null;
 }
